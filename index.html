@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>史诗弹幕传说 - 强化版</title>
+    <title>史诗弹幕传说 - 深渊试炼</title>
     <style>
         * {
             user-select: none;
@@ -178,8 +178,46 @@
         .modal-btn { background: #2c5a2a; border: none; padding: 8px 20px; border-radius: 40px; color: white; cursor: pointer; }
         .temp-buff-badge { background: #2a3f3f; border-radius: 20px; padding: 4px 12px; margin-top: 8px; display: inline-block; font-size: 14px; }
         .equip-detail { font-size: 12px; color: #ddd; margin-top: 4px; }
-        .sell-btn { background: #a52222; border: none; border-radius: 20px; padding: 4px 12px; margin-top: 8px; cursor: pointer; color: white; font-size: 12px; }
         .cost-text { font-size: 12px; color: #ffaa66; margin-left: 8px; }
+        .choice-panel {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .choice-card {
+            background: #1f2a2e;
+            border-radius: 28px;
+            padding: 20px;
+            width: 280px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.1s;
+            border: 2px solid #ffcc88;
+        }
+        .choice-card:hover {
+            transform: scale(1.02);
+            background: #2a3a3a;
+            border-color: #ffaa33;
+        }
+        .choice-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .choice-desc {
+            font-size: 16px;
+            color: #dddd99;
+        }
+        .set-detail {
+            background: #2a2a2a;
+            border-radius: 16px;
+            padding: 8px;
+            margin-top: 8px;
+            font-size: 14px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -192,7 +230,7 @@
         baseHp: 110,
         baseAtk: 14,
         baseAtkSpeed: 0.32,
-        baseSpeed: 320,
+        baseSpeed: 160,          // 初始移速减半 (原320)
         upgradeHpLv: 0,
         upgradeAtkLv: 0,
         upgradeSpdLv: 0,
@@ -208,15 +246,13 @@
     // 临时效果 (死亡清除)
     let tempEffects = {
         nextBossBuff: null,
-        hasEgg: false,
-        follower: null,
+        pendingEggs: 0,
+        followers: [],
         reviveStone: false,
         tempEquipments: []
     };
 
-    let currentDifficultyDepth = 0;   // 影响怪物强度
-    let pendingNodeCallback = null;
-    
+    let currentDifficultyDepth = 0;
     // 装备库
     const ALL_EQUIPMENTS = [
         { id: "w1", name: "铁剑", slot: "weapon", rarity: "white", atk: 5, hp: 0, spd: 0, move: 0, set: "基础", price: 80, slotName:"武器" },
@@ -241,12 +277,13 @@
         { id: "b5", name: "赤血踏", slot: "boots", rarity: "red", atk: 12, hp: 70, spd: 0.15, move: 70, set: "血煞", price: 1900, slotName:"靴子" },
     ];
 
-    // 辅助函数
     function saveToLocal() { localStorage.setItem("bulletGameSave", JSON.stringify(saveData)); }
     function loadFromLocal() {
         const raw = localStorage.getItem("bulletGameSave");
         if(raw) { try { Object.assign(saveData, JSON.parse(raw)); } catch(e){} }
         if(!saveData.equipment) saveData.equipment = { weapon:null, helmet:null, armor:null, boots:null };
+        if(!tempEffects.followers) tempEffects.followers = [];
+        if(tempEffects.pendingEggs === undefined) tempEffects.pendingEggs = 0;
         updateAllUI();
     }
     function clearAllData() {
@@ -259,12 +296,11 @@
         }, null, "确认清除", "取消");
     }
     function resetDefaultData() {
-        saveData = { gold: 600, baseHp: 110, baseAtk: 14, baseAtkSpeed: 0.32, baseSpeed: 320, upgradeHpLv:0, upgradeAtkLv:0, upgradeSpdLv:0, upgradeMoveLv:0, equipment:{ weapon:null, helmet:null, armor:null, boots:null }, clearedStageCount:0, tempShield:0, lifesteal:0, extraProjectiles:0, killStackAtk:0 };
-        tempEffects = { nextBossBuff: null, hasEgg: false, follower: null, reviveStone: false, tempEquipments: [] };
+        saveData = { gold: 600, baseHp: 110, baseAtk: 14, baseAtkSpeed: 0.32, baseSpeed: 160, upgradeHpLv:0, upgradeAtkLv:0, upgradeSpdLv:0, upgradeMoveLv:0, equipment:{ weapon:null, helmet:null, armor:null, boots:null }, clearedStageCount:0, tempShield:0, lifesteal:0, extraProjectiles:0, killStackAtk:0 };
+        tempEffects = { nextBossBuff: null, pendingEggs: 0, followers: [], reviveStone: false, tempEquipments: [] };
         currentDifficultyDepth = 0;
     }
 
-    // 计算最终属性
     function calcFinalStats() {
         let bonusHp = saveData.upgradeHpLv * 15;
         let bonusAtk = saveData.upgradeAtkLv * 4;
@@ -283,17 +319,18 @@
         let attackInterval = Math.max(0.12, saveData.baseAtkSpeed - bonusSpd);
         let moveSpeed = saveData.baseSpeed + bonusMove;
         let extraProj = 0, lifesteal = 0, shieldBuff = 0;
+        let activeSets = [];
         for(let [setName, count] of Object.entries(setCount)) {
             if(count >= 3) {
-                if(setName === "巨龙") { extraProj = 1; lifesteal = 8; }
-                if(setName === "血煞") { extraProj = 2; lifesteal = 12; }
-                if(setName === "雷霆") { lifesteal = 5; shieldBuff = 20; }
-                if(setName === "月光") { lifesteal = 3; }
+                if(setName === "巨龙") { extraProj = 1; lifesteal = 8; activeSets.push("巨龙(3):+1弹道,吸血8%"); }
+                if(setName === "血煞") { extraProj = 2; lifesteal = 12; activeSets.push("血煞(3):+2弹道,吸血12%"); }
+                if(setName === "雷霆") { lifesteal = 5; shieldBuff = 20; activeSets.push("雷霆(3):吸血5%,战斗护盾+20"); }
+                if(setName === "月光") { lifesteal = 3; activeSets.push("月光(3):吸血3%"); }
             }
-            if(count >= 4 && setName === "血煞") { extraProj = 2; lifesteal = 18; }
-            if(count >= 4 && setName === "巨龙") { extraProj = 2; lifesteal = 12; }
+            if(count >= 4 && setName === "血煞") { extraProj = 2; lifesteal = 18; activeSets.push("血煞(4):+2弹道,吸血18%"); }
+            if(count >= 4 && setName === "巨龙") { extraProj = 2; lifesteal = 12; activeSets.push("巨龙(4):+2弹道,吸血12%"); }
         }
-        return { maxHp, attack, attackInterval, moveSpeed, extraProj, lifesteal, shieldBuff };
+        return { maxHp, attack, attackInterval, moveSpeed, extraProj, lifesteal, shieldBuff, activeSets };
     }
 
     function updateAllUI() {
@@ -303,7 +340,6 @@
         document.getElementById("statAtk").innerText = `${Math.floor(stats.attack)}`;
         document.getElementById("statSpd").innerText = `${(1/stats.attackInterval).toFixed(1)}/s`;
         document.getElementById("statMove").innerText = `${Math.floor(stats.moveSpeed)}`;
-        // 显示强化花费
         document.getElementById("costHp").innerText = `💰${80 + saveData.upgradeHpLv * 25}`;
         document.getElementById("costAtk").innerText = `💰${70 + saveData.upgradeAtkLv * 22}`;
         document.getElementById("costSpd").innerText = `💰${90 + saveData.upgradeSpdLv * 30}`;
@@ -311,15 +347,13 @@
         for(let s of ["weapon","helmet","armor","boots"]) {
             let eq = saveData.equipment[s];
             let div = document.getElementById(`slot-${s}`);
-            if(eq) { div.innerHTML = `${eq.name} [${eq.rarity}]<div class="equip-detail">⚔+${eq.atk} ❤+${eq.hp} 🏹+${(eq.spd*100).toFixed(0)}%</div>`; div.className = `item-slot rarity-${eq.rarity}-slot`; }
+            if(eq) { div.innerHTML = `${eq.name} [${eq.rarity}]<div class="equip-detail">⚔+${eq.atk} ❤+${eq.hp} 🏹+${(eq.spd*100).toFixed(0)}%<br>套装:${eq.set}</div>`; div.className = `item-slot rarity-${eq.rarity}-slot`; }
             else { div.innerHTML = `无 | 点击购买`; div.className = `item-slot`; }
         }
-        let setDesc = []; let st = calcFinalStats();
-        if(st.extraProj>0) setDesc.push(`+${st.extraProj}弹道`);
-        if(st.lifesteal>0) setDesc.push(`吸血${st.lifesteal}%`);
-        document.getElementById("setEffect").innerHTML = setDesc.length? setDesc.join(" · ") : "无激活套装(≥3同套)";
+        let setDesc = stats.activeSets.length ? stats.activeSets.join(" · ") : "无激活套装(≥3同套)";
+        document.getElementById("setEffect").innerHTML = setDesc;
         let tempDiv = document.getElementById("tempEffectArea");
-        if(tempDiv) tempDiv.innerHTML = `<div>✨临时: ${tempEffects.nextBossBuff ? "石中剑(下次BOSS后+攻) " : ""} ${tempEffects.hasEgg ? "🥚孵蛋中 " : ""} ${tempEffects.reviveStone ? "🪦复活石板 " : ""} 临时装备:${tempEffects.tempEquipments.length}</div>`;
+        if(tempDiv) tempDiv.innerHTML = `<div>✨临时: ${tempEffects.nextBossBuff ? "石中剑(下次BOSS后+攻) " : ""} ${tempEffects.pendingEggs>0 ? `🥚待孵蛋x${tempEffects.pendingEggs} ` : ""} ${tempEffects.followers.length>0 ? `🐉随从x${tempEffects.followers.length} ` : ""} ${tempEffects.reviveStone ? "🪦复活石板 " : ""} 临时装备:${tempEffects.tempEquipments.length}</div>`;
     }
 
     function upgrade(stat) {
@@ -331,10 +365,10 @@
         saveToLocal(); updateAllUI();
     }
 
-    // 商店刷新机制（红色概率调低）
+    // 商店逻辑
     let refreshCount = 0;
     function getRarityWeighted() {
-        let redChance = 0.015 + (Math.floor(refreshCount/12)*0.005); // 降低红色概率
+        let redChance = 0.015 + (Math.floor(refreshCount/12)*0.005);
         let goldChance = 0.07 + (Math.floor(refreshCount/6)*0.01);
         if(Math.random() < redChance) return "red";
         if(Math.random() < goldChance) return "gold";
@@ -372,12 +406,11 @@
         for(let eq of currentShopList){
             let div = document.createElement("div");
             div.className = `shop-item rarity-${eq.rarity}`;
-            div.innerHTML = `<b>${eq.name}</b> (${eq.rarity})<br>[${eq.slotName}]<br>⚔+${eq.atk} ❤+${eq.hp}<br>💨+${eq.move} 🏹+${(eq.spd*100).toFixed(0)}%<br><span style="color:#ffaa55">💰${eq.price}</span>`;
+            div.innerHTML = `<b>${eq.name}</b> (${eq.rarity})<br>[${eq.slotName}]<br>⚔+${eq.atk} ❤+${eq.hp}<br>💨+${eq.move} 🏹+${(eq.spd*100).toFixed(0)}%<br>套装:${eq.set}<br><span style="color:#ffaa55">💰${eq.price}</span>`;
             div.onclick = () => buyEquipment(eq);
             container.appendChild(div);
         }
     }
-
     function buyEquipment(eq) {
         if(saveData.gold >= eq.price) {
             let slot = eq.slot;
@@ -389,7 +422,6 @@
             refreshShop(false);
         } else showModal("金币不足！");
     }
-
     function sellEquipment(slot) {
         let eq = saveData.equipment[slot];
         if(!eq) { showModal("该部位无装备可出售"); return; }
@@ -418,27 +450,46 @@
         document.body.appendChild(modal);
     }
 
-    // 怪物属性大幅增强，boss特别加强
+    // 怪物生成（精英移速翻倍至320，攻速已经减半）
     function createMonster(type, depth) {
         let baseHp = 70, baseDmg = 14;
-        let scaling = 1 + depth * 0.16;
-        if(type === "melee") { baseHp = 85 + depth*12; baseDmg = 16 + depth*3; }
-        if(type === "ranged") { baseHp = 70 + depth*10; baseDmg = 14 + depth*2.5; }
-        if(type === "elite") { baseHp = 220 + depth*28; baseDmg = 28 + depth*5; }
-        if(type === "boss") { baseHp = 500 + depth*60; baseDmg = 55 + depth*8; }
-        let moveSpeed = (type==="melee"?180:type==="boss"?140:110);
-        let attackSpeed = (type==="boss"?0.65:1.2); // boss射速更快
-        let name = { melee:"狂战士", ranged:"游荡者", elite:"精英卫士", boss:"深渊暴君" }[type];
-        return { type, name, hp: baseHp, maxHp: baseHp, damage: baseDmg, x: 400+Math.random()*200, y: 300+Math.random()*200, rangedCd:0, meleeCd:0, attackSpeed: attackSpeed, facingAngle:0, moveSpeed: moveSpeed };
+        if(type === "melee") { baseHp = 85; baseDmg = 16; }
+        if(type === "ranged") { baseHp = 70; baseDmg = 14; }
+        if(type === "elite") { baseHp = 220; baseDmg = 28; }
+        if(type === "boss") { baseHp = 500; baseDmg = 55; }
+        
+        // 每10层加强系数
+        let tenLayer = Math.floor(depth / 10);
+        let hpAtkMult = 1 + tenLayer * 0.4;
+        let speedMult = 1 + tenLayer * 0.1;
+        let atkSpeedMult = 1 - tenLayer * 0.1;
+        
+        let moveSpeed = 110;
+        let attackSpeed = 1.2;
+        if(type === "melee") moveSpeed = 180;
+        else if(type === "boss") { moveSpeed = 140; attackSpeed = 0.65; }
+        else if(type === "elite") { moveSpeed = 320; attackSpeed = 0.45; } // 精英移速翻倍 320
+        else { moveSpeed = 110; attackSpeed = 1.2; }
+        
+        if(type === "boss") attackSpeed = 0.325; // boss攻速翻倍效果保留
+        
+        let finalHp = Math.floor(baseHp * hpAtkMult + depth * (type==="melee"?12:type==="ranged"?10:type==="elite"?28:60));
+        let finalDmg = Math.floor(baseDmg * hpAtkMult + depth * (type==="melee"?3:type==="ranged"?2.5:type==="elite"?5:8));
+        let finalMove = Math.floor(moveSpeed * speedMult);
+        let finalAttackSpeed = attackSpeed * atkSpeedMult;
+        finalAttackSpeed = Math.max(0.2, finalAttackSpeed);
+        
+        let name = { melee:"狂战士", ranged:"游荡者", elite:"精英追猎者", boss:"深渊暴君" }[type];
+        return { type, name, hp: finalHp, maxHp: finalHp, damage: finalDmg, x: 400+Math.random()*200, y: 300+Math.random()*200, rangedCd:0, meleeCd:0, attackSpeed: finalAttackSpeed, facingAngle:0, moveSpeed: finalMove };
     }
 
     function generateWaveByDepth(depth) {
         let enemies = [];
-        let count = 1 + Math.min(3, Math.floor(depth/2));
+        let count = Math.min(10, 1 + Math.floor(depth / 3));
         let hasElite = (depth >= 2 && Math.random() < 0.5) || (depth>=4);
         let hasBoss = (depth >= 4 && Math.random() < 0.35) || (depth>=6);
-        if(hasBoss) { enemies.push(createMonster("boss", depth)); count--; }
-        if(hasElite && enemies.length<2) enemies.push(createMonster("elite", depth));
+        if(hasBoss && enemies.length < count) { enemies.push(createMonster("boss", depth)); count--; }
+        if(hasElite && enemies.length < count) { enemies.push(createMonster("elite", depth)); count--; }
         for(let i=0;i<count;i++) {
             let type = Math.random()<0.6 ? "melee" : "ranged";
             enemies.push(createMonster(type, depth));
@@ -447,7 +498,7 @@
         return enemies;
     }
 
-    // 事件调整：蛋的随从射速削弱，先古遗物红色概率降低
+    // 随机事件
     function triggerEvent(callbackAfter) {
         let events = ["sword", "egg", "stone", "relic"];
         let chosen = events[Math.floor(Math.random()*events.length)];
@@ -455,14 +506,13 @@
             tempEffects.nextBossBuff = true;
             showModal("⚔️ 石中剑: 下次击败BOSS后获得攻击力+10 (死亡消失)", ()=>callbackAfter(true));
         } else if(chosen === "egg") {
-            tempEffects.hasEgg = true;
-            showModal("🥚 神秘之蛋: 下次休息后孵出随从协助战斗 (射速较慢)", ()=>callbackAfter(true));
+            tempEffects.pendingEggs++;
+            showModal(`🥚 神秘之蛋 x1 (现有待孵蛋:${tempEffects.pendingEggs})，下次休息时每颗蛋孵出一名随从`, ()=>callbackAfter(true));
         } else if(chosen === "stone") {
             tempEffects.reviveStone = true;
             showModal("🪦 神秘石板: 死亡时可以选择50%血量复活一次", ()=>callbackAfter(true));
         } else if(chosen === "relic") {
             let rareEquips = ALL_EQUIPMENTS.filter(e => e.rarity === "purple" || e.rarity === "gold");
-            // 降低红色概率，只从紫和金里选，极小概率红
             if(Math.random() < 0.05) rareEquips = ALL_EQUIPMENTS.filter(e => e.rarity === "red");
             let relic = rareEquips[Math.floor(Math.random()*rareEquips.length)];
             let copy = { ...relic, atk: relic.atk, hp: relic.hp, spd: relic.spd, move: relic.move, name: relic.name+"(临时)" };
@@ -472,8 +522,8 @@
         updateAllUI();
     }
 
-    // 战斗模块变量
-    let inCombat = false, combatCtx, canvas, animFrame, playerObj, bullets=[], enemies=[], enemyProjectiles=[], keys={ w:false,s:false,a:false,d:false }, mouseAngle=0, lastTime=0, pendingSectorAttacks=[], followerUnit=null, followerAttackCd=0;
+    // 战斗系统变量
+    let inCombat = false, combatCtx, canvas, animFrame, playerObj, bullets=[], enemies=[], enemyProjectiles=[], keys={ w:false,s:false,a:false,d:false }, mouseAngle=0, lastTime=0, pendingSectorAttacks=[];
     let combatGoldReward=0, currentCombatNodeCallback=null;
     let mouseX=500, mouseY=350;
 
@@ -494,18 +544,18 @@
             return newE;
         });
         bullets = []; enemyProjectiles = []; pendingSectorAttacks = [];
-        followerUnit = tempEffects.follower ? { ...tempEffects.follower, x:playerObj.x+40, y:playerObj.y, hp:tempEffects.follower.maxHp, attackCd:0 } : null;
+        let followersCopy = tempEffects.followers.map(f => ({ ...f, attackCd: 0, x: playerObj.x+40, y: playerObj.y+15 }));
         inCombat = true;
         currentCombatNodeCallback = onFinish;
         document.getElementById("combatPanel").style.display = "block";
         document.getElementById("mainMenuPanel").style.display = "none";
         canvas = document.getElementById("gameCanvas"); combatCtx = canvas.getContext("2d");
         lastTime = performance.now();
-        function gameLoop(now) { if(!inCombat) return; let dt = Math.min(0.033, (now-lastTime)/1000); if(dt>0) { updateCombat(dt); drawCombat(); } lastTime=now; requestAnimationFrame(gameLoop); }
+        function gameLoop(now) { if(!inCombat) return; let dt = Math.min(0.033, (now-lastTime)/1000); if(dt>0) { updateCombat(dt, followersCopy); drawCombat(followersCopy); } lastTime=now; requestAnimationFrame(gameLoop); }
         requestAnimationFrame(gameLoop);
     }
 
-    function updateCombat(dt) {
+    function updateCombat(dt, followers) {
         if(playerObj.hp <= 0) { defeatHandler(); return; }
         let move={x:0,y:0}; if(keys.w) move.y-=1; if(keys.s) move.y+=1; if(keys.a) move.x-=1; if(keys.d) move.x+=1;
         if(move.x||move.y) { let len=Math.hypot(move.x,move.y); move.x/=len; move.y/=len; playerObj.x+=move.x*playerObj.moveSpeed*dt; playerObj.y+=move.y*playerObj.moveSpeed*dt; }
@@ -518,26 +568,25 @@
             playerObj.attackCd = 1/(1/(calcFinalStats().attackInterval));
         } else playerObj.attackCd-=dt;
         
-        // 随从攻击速度削弱到十分之一（原帧率攻击变为冷却2秒）
-        if(followerUnit && followerUnit.hp>0) {
-            if(followerUnit.attackCd <= 0) {
+        for(let f of followers) {
+            if(f.hp <= 0) continue;
+            if(f.attackCd <= 0) {
                 let nearest = enemies[0];
-                if(nearest) { let angle=Math.atan2(nearest.y-followerUnit.y, nearest.x-followerUnit.x); bullets.push({x:followerUnit.x,y:followerUnit.y, vx:Math.cos(angle)*480, vy:Math.sin(angle)*480, damage:18}); }
-                followerUnit.attackCd = 2.0; // 射速大幅降低
-            } else followerUnit.attackCd -= dt;
-            followerUnit.x = playerObj.x+35; followerUnit.y = playerObj.y+15;
+                if(nearest) { let angle=Math.atan2(nearest.y-f.y, nearest.x-f.x); bullets.push({x:f.x,y:f.y, vx:Math.cos(angle)*480, vy:Math.sin(angle)*480, damage:18}); }
+                f.attackCd = 2.0;
+            } else f.attackCd -= dt;
+            f.x = playerObj.x+35 + (followers.indexOf(f)*25);
+            f.y = playerObj.y+15;
         }
         
         for(let i=0;i<bullets.length;i++) { bullets[i].x+=bullets[i].vx*dt; bullets[i].y+=bullets[i].vy*dt; if(bullets[i].x<0||bullets[i].x>1000||bullets[i].y<0||bullets[i].y>700) bullets.splice(i--,1); }
         for(let i=0;i<enemies.length;i++) {
             let e=enemies[i]; let dx=playerObj.x-e.x, dy=playerObj.y-e.y, dist=Math.hypot(dx,dy);
-            if(dist>0.01) { let speed=(e.moveSpeed || (e.type==="melee"?180:e.type==="boss"?140:100))*dt; if(dist>35){ e.x+=(dx/dist)*speed; e.y+=(dy/dist)*speed; } }
-            // 远程攻击: boss发射三条弹幕
+            if(dist>0.01) { let speed=(e.moveSpeed)*dt; if(dist>35){ e.x+=(dx/dist)*speed; e.y+=(dy/dist)*speed; } }
             if((e.type==="ranged"||e.type==="elite"||e.type==="boss") && e.rangedCd<=0) {
                 let angle=Math.atan2(playerObj.y-e.y, playerObj.x-e.x);
                 let icon=(e.type==="elite"||e.type==="boss")?"sword":"normal";
                 if(e.type==="boss") {
-                    // 三条弹道
                     for(let off of [-0.25, 0, 0.25]) {
                         let a = angle + off;
                         enemyProjectiles.push({x:e.x,y:e.y, vx:Math.cos(a)*320, vy:Math.sin(a)*320, damage:e.damage, icon:"sword"});
@@ -545,19 +594,26 @@
                 } else {
                     enemyProjectiles.push({x:e.x,y:e.y, vx:Math.cos(angle)*300, vy:Math.sin(angle)*300, damage:e.damage, icon:icon});
                 }
-                e.rangedCd=e.attackSpeed;
+                e.rangedCd = e.attackSpeed;
             } else if(e.rangedCd) e.rangedCd-=dt;
+            
+            let meleeCdBase = 1.2;
+            if(e.type === "elite" || e.type === "boss") meleeCdBase = 0.6;
             if(e.meleeCd<=0 && (e.type==="melee"||e.type==="elite"||e.type==="boss")) {
                 let angleTo=Math.atan2(playerObj.y-e.y, playerObj.x-e.x); let diff=Math.abs(angleTo-e.facingAngle); if(diff>Math.PI) diff=2*Math.PI-diff;
                 if(diff<1.0 && Math.hypot(playerObj.x-e.x, playerObj.y-e.y)<75) { if(playerObj.invincible<=0){ playerObj.hp-=e.damage; playerObj.invincible=0.5; } }
                 pendingSectorAttacks.push({x:e.x,y:e.y, angle:e.facingAngle, range:75, duration:0.2, current:0});
-                e.meleeCd=1.2; e.facingAngle=angleTo+(Math.random()-0.5)*0.6;
+                e.meleeCd = meleeCdBase;
+                e.facingAngle = angleTo+(Math.random()-0.5)*0.6;
             } else if(e.meleeCd) e.meleeCd-=dt;
         }
         for(let i=0;i<enemyProjectiles.length;i++) { let p=enemyProjectiles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; if(Math.hypot(p.x-playerObj.x, p.y-playerObj.y)<20 && playerObj.invincible<=0){ playerObj.hp-=p.damage; playerObj.invincible=0.5; enemyProjectiles.splice(i--,1); } else if(p.x<0||p.x>1000||p.y<0||p.y>700) enemyProjectiles.splice(i--,1); }
-        for(let i=0;i<bullets.length;i++) for(let j=0;j<enemies.length;j++) { if(Math.hypot(bullets[i].x-enemies[j].x, bullets[i].y-enemies[j].y)<22) { enemies[j].hp-=bullets[i].damage; if(enemies[j].hp<=0){ let goldGain=enemies[j].type==="melee"?35:enemies[j].type==="ranged"?30:enemies[j].type==="elite"?100:300; // 减少精英和boss金币
+        for(let i=0;i<bullets.length;i++) for(let j=0;j<enemies.length;j++) { if(Math.hypot(bullets[i].x-enemies[j].x, bullets[i].y-enemies[j].y)<22) { enemies[j].hp-=bullets[i].damage; if(enemies[j].hp<=0){ let goldGain = 0;
+                if(enemies[j].type==="melee") goldGain = 12;
+                else if(enemies[j].type==="ranged") goldGain = 9;
+                else if(enemies[j].type==="elite") goldGain = 30;
+                else if(enemies[j].type==="boss") goldGain = 90;
                 saveData.gold+=goldGain; combatGoldReward+=goldGain; if(playerObj.lifesteal>0) playerObj.hp=Math.min(playerObj.maxHp, playerObj.hp+Math.floor(bullets[i].damage*playerObj.lifesteal/100)); if(tempEffects.nextBossBuff && enemies[j].type==="boss") { saveData.baseAtk+=10; tempEffects.nextBossBuff=false; showModal("石中剑之力: 攻击力永久+10!"); updateAllUI(); } enemies.splice(j,1); } bullets.splice(i--,1); break; } }
-        if(followerUnit && followerUnit.hp<=0) followerUnit=null;
         if(enemies.length===0) { winCombat(); }
         for(let s of pendingSectorAttacks) { s.current+=dt; if(s.current>=s.duration) pendingSectorAttacks.splice(pendingSectorAttacks.indexOf(s),1); }
     }
@@ -565,11 +621,6 @@
     function winCombat() {
         inCombat=false;
         saveData.gold+=combatGoldReward;
-        currentDifficultyDepth++;
-        saveData.clearedStageCount++;
-        if(saveData.clearedStageCount % 15 === 0) {
-            giveTreasureChest();
-        }
         saveToLocal();
         updateAllUI();
         document.getElementById("combatPanel").style.display="none";
@@ -577,47 +628,20 @@
         if(currentCombatNodeCallback) currentCombatNodeCallback(true);
     }
     
-    function giveTreasureChest() {
-        let r = Math.random();
-        let quality = "blue";
-        if(r<0.03) quality="red";
-        else if(r<0.1) quality="gold";
-        else if(r<0.35) quality="purple";
-        let candidates = ALL_EQUIPMENTS.filter(e=>e.rarity===quality);
-        let chestItem = JSON.parse(JSON.stringify(candidates[Math.floor(Math.random()*candidates.length)]));
-        let slot = chestItem.slot;
-        let oldEq = saveData.equipment[slot];
-        let compareMsg = `获得 ${chestItem.name} (${chestItem.rarity})\n⚔+${chestItem.atk} ❤+${chestItem.hp} 🏹+${(chestItem.spd*100).toFixed(0)}%\n`;
-        if(oldEq) {
-            compareMsg += `\n当前装备 ${oldEq.name}:\n⚔+${oldEq.atk} ❤+${oldEq.hp} 🏹+${(oldEq.spd*100).toFixed(0)}%\n`;
-            compareMsg += `\n差值: 攻击${chestItem.atk-oldEq.atk} 生命${chestItem.hp-oldEq.hp}`;
-        }
-        showModal(compareMsg, 
-            ()=>{
-                if(oldEq && !confirm(`替换${oldEq.name}？`)) return;
-                saveData.equipment[slot] = chestItem;
-                saveToLocal(); updateAllUI();
-                showModal(`已装备 ${chestItem.name}`);
-            }, 
-            ()=>{
-                let sellPrice = Math.floor(chestItem.price * 0.5);
-                saveData.gold += sellPrice;
-                saveToLocal(); updateAllUI();
-                showModal(`卖出获得 ${sellPrice} 金币`);
-            }, "穿戴", "卖出");
-    }
-
+    // 修复石板复活卡死：有复活石时直接恢复血量，不中断战斗
     function defeatHandler() {
-        inCombat=false;
         if(tempEffects.reviveStone) {
-            showModal("🪦 石板生效: 复活并恢复50%生命", ()=>{
-                playerObj.hp = playerObj.maxHp * 0.5; tempEffects.reviveStone=false; inCombat=true; 
-                updateAllUI();
-            }, null, "复活");
-            return;
+            tempEffects.reviveStone = false;
+            playerObj.hp = playerObj.maxHp * 0.5;
+            playerObj.invincible = 0.5;
+            showModal("🪦 石板生效: 复活并恢复50%生命", null, null, "确定");
+            updateAllUI();
+            return; // 战斗继续，不设置 inCombat=false
         }
-        showModal("你已死亡，返回主城...", ()=>{
-            tempEffects = { nextBossBuff:null, hasEgg:false, follower:null, reviveStone:false, tempEquipments:[] };
+        inCombat=false;
+        showModal("你已死亡，返回主城，从第一层重新开始...", ()=>{
+            currentDifficultyDepth = 0;
+            tempEffects = { nextBossBuff:null, pendingEggs:0, followers:[], reviveStone:false, tempEquipments:[] };
             saveData.killStackAtk=0;
             updateAllUI();
             document.getElementById("combatPanel").style.display="none";
@@ -625,58 +649,118 @@
         });
     }
 
-    function drawCombat() {
+    function drawCombat(followers) {
         combatCtx.clearRect(0,0,1000,700); combatCtx.fillStyle="#141c24"; combatCtx.fillRect(0,0,1000,700);
         combatCtx.fillStyle="#ffdd99"; combatCtx.beginPath(); combatCtx.arc(playerObj.x,playerObj.y,16,0,Math.PI*2); combatCtx.fill(); combatCtx.fillStyle="white"; combatCtx.font="bold 20px monospace"; combatCtx.fillText("🧙", playerObj.x-12, playerObj.y+8);
         for(let e of enemies) { combatCtx.fillStyle=e.type==="melee"?"#aa6644":e.type==="ranged"?"#88aa44":e.type==="elite"?"#c97eff":"#dd3333"; combatCtx.beginPath(); combatCtx.arc(e.x,e.y,20,0,Math.PI*2); combatCtx.fill(); combatCtx.fillStyle="white"; combatCtx.fillText(e.name, e.x-15, e.y-12); combatCtx.fillStyle="red"; combatCtx.fillRect(e.x-25, e.y-28, 50*(e.hp/e.maxHp), 6); }
         for(let s of pendingSectorAttacks) { combatCtx.fillStyle=`rgba(255,80,40,${0.6-s.current*2})`; combatCtx.beginPath(); combatCtx.moveTo(s.x,s.y); let sa=s.angle-0.9, ea=s.angle+0.9; for(let a=sa;a<=ea;a+=0.1){ let x1=s.x+Math.cos(a)*s.range, y1=s.y+Math.sin(a)*s.range; if(a===sa) combatCtx.moveTo(x1,y1); else combatCtx.lineTo(x1,y1); } combatCtx.fill(); }
         for(let b of bullets) { combatCtx.fillStyle="cyan"; combatCtx.beginPath(); combatCtx.arc(b.x,b.y,5,0,Math.PI*2); combatCtx.fill(); }
         for(let p of enemyProjectiles) { if(p.icon==="sword"){ combatCtx.fillStyle="#ff6666"; combatCtx.fillRect(p.x-6,p.y-3,12,6); combatCtx.fillStyle="#aa2222"; combatCtx.fillRect(p.x-2,p.y-8,4,16); } else { combatCtx.fillStyle="#ff8844"; combatCtx.beginPath(); combatCtx.arc(p.x,p.y,7,0,Math.PI*2); combatCtx.fill(); } }
-        if(followerUnit) { combatCtx.fillStyle="#88ffaa"; combatCtx.beginPath(); combatCtx.arc(followerUnit.x,followerUnit.y,12,0,Math.PI*2); combatCtx.fill(); combatCtx.fillText("🐉", followerUnit.x-8, followerUnit.y+5); }
+        for(let f of followers) { if(f.hp>0) { combatCtx.fillStyle="#88ffaa"; combatCtx.beginPath(); combatCtx.arc(f.x,f.y,12,0,Math.PI*2); combatCtx.fill(); combatCtx.fillText("🐉", f.x-8, f.y+5); } }
         combatCtx.beginPath(); combatCtx.arc(mouseX, mouseY, 10, 0, Math.PI*2); combatCtx.strokeStyle = "#ffaa66"; combatCtx.lineWidth = 2; combatCtx.stroke();
         combatCtx.moveTo(mouseX-18, mouseY); combatCtx.lineTo(mouseX-8, mouseY); combatCtx.moveTo(mouseX+18, mouseY); combatCtx.lineTo(mouseX+8, mouseY); combatCtx.moveTo(mouseX, mouseY-18); combatCtx.lineTo(mouseX, mouseY-8); combatCtx.moveTo(mouseX, mouseY+18); combatCtx.lineTo(mouseX, mouseY+8); combatCtx.stroke();
         combatCtx.fillStyle="white"; combatCtx.fillText(`❤️ ${Math.floor(playerObj.hp)}/${playerObj.maxHp}`,20,40);
     }
 
-    let currentNodeIndex = 0;
-    function startAdventure() {
-        currentNodeIndex = 0;
-        function nextNode() {
-            let node = { type: "combat", wave: generateWaveByDepth(currentDifficultyDepth) };
-            if(Math.random()<0.2 && currentDifficultyDepth>1) node = { type: "event" };
-            if(node.type === "event") {
-                triggerEvent((success)=>{
-                    currentNodeIndex++;
-                    if(currentNodeIndex % 3 === 0) { triggerRestOrTrade(()=>{ nextNode(); }); }
-                    else nextNode();
-                });
+    function backToTown() { 
+        document.getElementById("mainMenuPanel").style.display="block"; 
+        document.getElementById("combatPanel").style.display="none"; 
+        updateAllUI(); 
+    }
+
+    // 关卡选择界面
+    function showChoicePanel() {
+        let options = [];
+        for(let i=0;i<3;i++) {
+            let isEvent = (Math.random() < 0.25 && i===2);
+            if(isEvent) {
+                options.push({ type: "event", name: "✨ 神秘事件", desc: "触发随机祝福或遗物", eventType: "random" });
             } else {
-                startCombat(node.wave, (win)=>{
-                    if(win) {
-                        currentNodeIndex++;
-                        if(currentNodeIndex % 3 === 0) triggerRestOrTrade(()=>{ nextNode(); });
-                        else {
-                            showModal("胜利！继续冒险？", ()=>{ nextNode(); }, ()=>{ backToTown(); }, "继续前进", "返回主城");
-                        }
-                    } else backToTown();
-                });
+                let wave = generateWaveByDepth(currentDifficultyDepth);
+                let desc = wave.map(m=>m.name).join(", ");
+                if(desc.length>40) desc = desc.slice(0,40)+"...";
+                options.push({ type: "combat", name: `⚔️ 怪物集群 (${wave.length}只)`, desc: desc, wave: wave });
             }
         }
-        nextNode();
+        if(!options.some(o=>o.type==="combat")) options[0] = { type: "combat", name: "⚔️ 怪物集群", desc: "一群敌人", wave: generateWaveByDepth(currentDifficultyDepth) };
+        
+        let panel = document.createElement("div"); panel.className = "custom-modal";
+        let html = `<div class="modal-content" style="min-width: 800px;"><h2>选择你的道路 (当前深度: ${currentDifficultyDepth})</h2><div class="choice-panel">`;
+        for(let opt of options) {
+            html += `<div class="choice-card" data-type="${opt.type}" data-index="${options.indexOf(opt)}">
+                        <div class="choice-title">${opt.name}</div>
+                        <div class="choice-desc">${opt.desc || "神秘的机遇"}</div>
+                     </div>`;
+        }
+        html += `</div><div class="modal-buttons"><button class="modal-btn" id="cancelChoice">返回主城</button></div></div>`;
+        panel.innerHTML = html;
+        document.body.appendChild(panel);
+        
+        for(let card of panel.querySelectorAll(".choice-card")) {
+            card.addEventListener("click", (e) => {
+                let idx = parseInt(card.dataset.index);
+                let chosen = options[idx];
+                panel.remove();
+                if(chosen.type === "event") {
+                    triggerEvent(()=>{
+                        currentDifficultyDepth++;
+                        saveData.clearedStageCount++;
+                        saveToLocal();
+                        updateAllUI();
+                        afterCombatOrEvent();
+                    });
+                } else {
+                    startCombat(chosen.wave, (win)=>{
+                        if(win) {
+                            currentDifficultyDepth++;
+                            saveData.clearedStageCount++;
+                            saveToLocal();
+                            updateAllUI();
+                            afterCombatOrEvent();
+                        } else {
+                            backToTown();
+                        }
+                    });
+                }
+            });
+        }
+        document.getElementById("cancelChoice")?.addEventListener("click", () => {
+            panel.remove();
+            backToTown();
+        });
     }
-    function triggerRestOrTrade(cb) {
-        showModal("🏆 通过三层！ 休息(回满体力) 或 经商(+300金币)", ()=>{
-            saveData.gold+=300; if(tempEffects.hasEgg) { tempEffects.hasEgg=false; tempEffects.follower={ hp:120, maxHp:120, attack:20, x:0,y:0, attackCd:0 }; showModal("蛋孵化了！获得龙侍从!"); }
-            updateAllUI(); cb();
-        }, ()=>{
-            saveData.gold+=300; updateAllUI(); cb();
-        }, "休息", "经商");
+    
+    function afterCombatOrEvent() {
+        if(saveData.clearedStageCount % 3 === 0) {
+            showModal("🏆 通过三层！ 休息(回满体力) 或 经商(+300金币)", 
+                ()=>{
+                    for(let i=0;i<tempEffects.pendingEggs;i++) {
+                        tempEffects.followers.push({ hp: 120, maxHp: 120, attack: 18, x: 0, y: 0, attackCd: 0 });
+                    }
+                    tempEffects.pendingEggs = 0;
+                    saveData.gold += 300;
+                    showModal(`休息恢复体力，并孵化了 ${tempEffects.followers.length} 只随从！`);
+                    updateAllUI();
+                    showChoicePanel();
+                },
+                ()=>{
+                    saveData.gold += 300;
+                    updateAllUI();
+                    showChoicePanel();
+                }, "休息", "经商");
+        } else {
+            showChoicePanel();
+        }
     }
-    function backToTown() { document.getElementById("mainMenuPanel").style.display="block"; document.getElementById("combatPanel").style.display="none"; updateAllUI(); }
 
+    function startAdventure() {
+        showChoicePanel();
+    }
+
+    // 页面初始化
     window.onload = () => {
         const root = document.getElementById("gameRoot");
-        root.innerHTML = `<div class="game-container"><div id="mainMenuPanel" class="main-menu"><div class="top-bar"><span>💰 金币: <span id="goldAmount">0</span></span><span>⚔️ 弹幕传说·强化版</span><button class="btn clear-btn" id="clearDataBtn">清除数据</button></div><div class="action-buttons"><button class="btn btn-primary" id="btnFight">⚔️ 闯关</button><button class="btn" id="btnShop">🏪 商人</button><button class="btn" id="btnUpgrade">💪 强化</button></div><div id="panelUpgrade" class="panel" style="display:none"><h3>强化 (金币递增)</h3><div class="stats-grid"><div class="stat-card">❤️血量+15 <button id="upHp" class="upgrade-btn">强化</button><span id="costHp" class="cost-text"></span></div><div class="stat-card">⚔️攻击+4 <button id="upAtk" class="upgrade-btn">强化</button><span id="costAtk" class="cost-text"></span></div><div class="stat-card">🏹攻速+0.025<button id="upSpd" class="upgrade-btn">强化</button><span id="costSpd" class="cost-text"></span></div><div class="stat-card">👟移速+18<button id="upMove" class="upgrade-btn">强化</button><span id="costMove" class="cost-text"></span></div></div></div><div id="panelShop" class="panel" style="display:none"><h3>🛒 装备商店 <button id="refreshShopBtn" class="btn refresh-btn">刷新(50金)</button></h3><div id="shopItems"></div><div>套装: <span id="setEffect">无</span></div></div><div class="panel"><h3>装备栏 (点击卖出)</h3><div class="equip-grid"><div class="item-slot" id="slot-weapon">无</div><div class="item-slot" id="slot-helmet">无</div><div class="item-slot" id="slot-armor">无</div><div class="item-slot" id="slot-boots">无</div></div><div>属性: ❤️<span id="statHp">0</span> ⚔️<span id="statAtk">0</span> 🏹<span id="statSpd">0</span>/s 👟<span id="statMove">0</span></div><div id="tempEffectArea"></div></div></div><div id="combatPanel" style="display:none"><canvas id="gameCanvas" width="1000" height="700"></canvas><div class="combat-overlay">鼠标瞄准 | WASD移动 | 自动射击</div></div></div>`;
+        root.innerHTML = `<div class="game-container"><div id="mainMenuPanel" class="main-menu"><div class="top-bar"><span>💰 金币: <span id="goldAmount">0</span></span><span>⚔️ 弹幕传说·深渊试炼</span><button class="btn clear-btn" id="clearDataBtn">清除数据</button></div><div class="action-buttons"><button class="btn btn-primary" id="btnFight">⚔️ 闯关</button><button class="btn" id="btnShop">🏪 商人</button><button class="btn" id="btnUpgrade">💪 强化</button></div><div id="panelUpgrade" class="panel" style="display:none"><h3>强化 (金币递增)</h3><div class="stats-grid"><div class="stat-card">❤️血量+15 <button id="upHp" class="upgrade-btn">强化</button><span id="costHp" class="cost-text"></span></div><div class="stat-card">⚔️攻击+4 <button id="upAtk" class="upgrade-btn">强化</button><span id="costAtk" class="cost-text"></span></div><div class="stat-card">🏹攻速+0.025<button id="upSpd" class="upgrade-btn">强化</button><span id="costSpd" class="cost-text"></span></div><div class="stat-card">👟移速+18<button id="upMove" class="upgrade-btn">强化</button><span id="costMove" class="cost-text"></span></div></div></div><div id="panelShop" class="panel" style="display:none"><h3>🛒 装备商店 <button id="refreshShopBtn" class="btn refresh-btn">刷新(50金)</button></h3><div id="shopItems"></div><div>套装效果: <span id="setEffect">无</span></div></div><div class="panel"><h3>装备栏 (点击卖出)</h3><div class="equip-grid"><div class="item-slot" id="slot-weapon">无</div><div class="item-slot" id="slot-helmet">无</div><div class="item-slot" id="slot-armor">无</div><div class="item-slot" id="slot-boots">无</div></div><div>属性: ❤️<span id="statHp">0</span> ⚔️<span id="statAtk">0</span> 🏹<span id="statSpd">0</span>/s 👟<span id="statMove">0</span></div><div id="tempEffectArea"></div></div></div><div id="combatPanel" style="display:none"><canvas id="gameCanvas" width="1000" height="700"></canvas><div class="combat-overlay">鼠标瞄准 | WASD移动 | 自动射击</div></div></div>`;
         canvas = document.getElementById("gameCanvas");
         document.getElementById("btnFight").onclick = () => startAdventure();
         document.getElementById("btnShop").onclick = () => { document.getElementById("panelShop").style.display="block"; document.getElementById("panelUpgrade").style.display="none"; refreshShop(false); };
