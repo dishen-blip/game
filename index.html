@@ -253,6 +253,9 @@
     };
 
     let currentDifficultyDepth = 0;
+    // 记录是否已触发过1000金币提示
+    let hasShownGoldTip = false;
+
     // 装备库
     const ALL_EQUIPMENTS = [
         { id: "w1", name: "铁剑", slot: "weapon", rarity: "white", atk: 5, hp: 0, spd: 0, move: 0, set: "基础", price: 80, slotName:"武器" },
@@ -299,6 +302,7 @@
         saveData = { gold: 600, baseHp: 110, baseAtk: 14, baseAtkSpeed: 0.32, baseSpeed: 160, upgradeHpLv:0, upgradeAtkLv:0, upgradeSpdLv:0, upgradeMoveLv:0, equipment:{ weapon:null, helmet:null, armor:null, boots:null }, clearedStageCount:0, tempShield:0, lifesteal:0, extraProjectiles:0, killStackAtk:0 };
         tempEffects = { nextBossBuff: null, pendingEggs: 0, followers: [], reviveStone: false, tempEquipments: [] };
         currentDifficultyDepth = 0;
+        hasShownGoldTip = false;
     }
 
     function calcFinalStats() {
@@ -334,7 +338,13 @@
     }
 
     function updateAllUI() {
-        document.getElementById("goldAmount").innerText = Math.floor(saveData.gold);
+        const currentGold = Math.floor(saveData.gold);
+        document.getElementById("goldAmount").innerText = currentGold;
+        // 检查首次超过1000金币
+        if (!hasShownGoldTip && currentGold >= 1000) {
+            hasShownGoldTip = true;
+            showModal("💰 恭喜你积累了1000金币！快去商人处购买强力装备或进行属性强化吧！", null, null, "知道了");
+        }
         const stats = calcFinalStats();
         document.getElementById("statHp").innerText = `${stats.maxHp}`;
         document.getElementById("statAtk").innerText = `${Math.floor(stats.attack)}`;
@@ -450,7 +460,7 @@
         document.body.appendChild(modal);
     }
 
-    // 怪物生成（精英移速翻倍至320，攻速已经减半）
+    // 怪物生成（精英移速降低20%：原320变为256）
     function createMonster(type, depth) {
         let baseHp = 70, baseDmg = 14;
         if(type === "melee") { baseHp = 85; baseDmg = 16; }
@@ -468,10 +478,10 @@
         let attackSpeed = 1.2;
         if(type === "melee") moveSpeed = 180;
         else if(type === "boss") { moveSpeed = 140; attackSpeed = 0.65; }
-        else if(type === "elite") { moveSpeed = 320; attackSpeed = 0.45; } // 精英移速翻倍 320
+        else if(type === "elite") { moveSpeed = 256; attackSpeed = 0.45; } // 降低20%: 320*0.8=256
         else { moveSpeed = 110; attackSpeed = 1.2; }
         
-        if(type === "boss") attackSpeed = 0.325; // boss攻速翻倍效果保留
+        if(type === "boss") attackSpeed = 0.325;
         
         let finalHp = Math.floor(baseHp * hpAtkMult + depth * (type==="melee"?12:type==="ranged"?10:type==="elite"?28:60));
         let finalDmg = Math.floor(baseDmg * hpAtkMult + depth * (type==="melee"?3:type==="ranged"?2.5:type==="elite"?5:8));
@@ -643,6 +653,7 @@
             currentDifficultyDepth = 0;
             tempEffects = { nextBossBuff:null, pendingEggs:0, followers:[], reviveStone:false, tempEquipments:[] };
             saveData.killStackAtk=0;
+            hasShownGoldTip = false; // 重置提示标志，让新循环可以再次提示
             updateAllUI();
             document.getElementById("combatPanel").style.display="none";
             document.getElementById("mainMenuPanel").style.display="block";
