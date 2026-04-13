@@ -1,0 +1,674 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>史诗弹幕传说 - 装备套装与随机事件</title>
+    <style>
+        * {
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0f1e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Press Start 2P', 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            background: #1e2a2e;
+            border-radius: 32px;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            padding: 16px;
+        }
+
+        .main-menu {
+            width: 1150px;
+            background: #0f1722dd;
+            backdrop-filter: blur(8px);
+            border-radius: 28px;
+            padding: 20px;
+            color: #f3e9c0;
+            border: 1px solid #ffd966;
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            background: #00000066;
+            padding: 12px 20px;
+            border-radius: 60px;
+            margin-bottom: 25px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .gold {
+            color: #ffd966;
+            text-shadow: 0 0 5px #ffaa33;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: #2c3e2f;
+            border: none;
+            color: #ffe5b4;
+            font-size: 22px;
+            font-weight: bold;
+            padding: 12px 28px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.1s linear;
+            box-shadow: 0 5px 0 #1e2a1a;
+            font-family: monospace;
+        }
+
+        .btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #1e2a1a;
+        }
+
+        .btn-primary {
+            background: #b85c1a;
+            box-shadow: 0 5px 0 #6e2c00;
+        }
+
+        .panel {
+            background: #0a0f1ccc;
+            border-radius: 28px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid #b8860b;
+        }
+
+        .panel h3 {
+            margin: 0 0 12px 0;
+            border-left: 8px solid #ffaa44;
+            padding-left: 15px;
+        }
+
+        .stats-grid, .equip-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .stat-card {
+            background: #1f2a2e;
+            padding: 8px 15px;
+            border-radius: 40px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .upgrade-btn {
+            background: #2c5a2a;
+            border: none;
+            color: white;
+            border-radius: 30px;
+            padding: 4px 12px;
+            cursor: pointer;
+        }
+
+        .item-slot {
+            background: #2c2f36;
+            border-radius: 20px;
+            padding: 10px 16px;
+            min-width: 150px;
+            text-align: center;
+            transition: 0.1s;
+            border-left: 4px solid #aaa;
+            cursor: pointer;
+            position: relative;
+        }
+        .item-slot:hover { filter: brightness(1.1); transform: scale(1.02); }
+        .rarity-white-slot { background: #3a3e44; border-left: 6px solid #cccccc; box-shadow: 0 0 4px #ccc; }
+        .rarity-blue-slot { background: #2a3a5a; border-left: 6px solid #4488ff; box-shadow: 0 0 8px #4488ff; }
+        .rarity-purple-slot { background: #3a2a5a; border-left: 6px solid #aa55ff; box-shadow: 0 0 8px #aa55ff; }
+        .rarity-gold-slot { background: #5a4a1a; border-left: 6px solid #ffcc44; box-shadow: 0 0 12px #ffaa33; text-shadow: 0 0 2px gold; }
+        .rarity-red-slot { background: #5a2a2a; border-left: 6px solid #ff4444; box-shadow: 0 0 14px #ff3333; text-shadow: 0 0 3px red; }
+
+        .shop-item {
+            margin: 8px;
+            padding: 8px;
+            border-radius: 18px;
+            display: inline-block;
+            width: 170px;
+            cursor: pointer;
+            transition: 0.05s linear;
+            background: #1f2a2e;
+        }
+        .rarity-white { color: #dddddd; border-left: 4px solid #aaa; background: #2a2e36; }
+        .rarity-blue { color: #88aaff; border-left: 4px solid #4488ff; background: #1f2a44; }
+        .rarity-purple { color: #c57eff; border-left: 4px solid #aa55ff; background: #2a1f4a; }
+        .rarity-gold { color: #ffcc66; border-left: 4px solid #ffaa33; background: #4a3a1a; text-shadow: 0 0 2px #ffaa33; }
+        .rarity-red { color: #ff7777; border-left: 4px solid #ff3333; background: #5a2a2a; text-shadow: 0 0 2px red; }
+
+        .clear-btn { background: #5a2a2a; margin-top: 15px; }
+        .refresh-btn { background: #2a6e6e; margin-left: 12px; font-size: 16px; padding: 6px 12px; }
+        canvas { display: block; margin: 0 auto; border-radius: 24px; box-shadow: 0 0 0 3px #ffdd99; cursor: none; }
+        .combat-overlay { text-align: center; margin-top: 12px; color: #ffcc88; }
+
+        .custom-modal {
+            position: fixed; top:0; left:0; width:100%; height:100%; background: #000000aa;
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-content {
+            background: #1e272e; border-radius: 32px; padding: 20px 30px; min-width: 300px;
+            text-align: center; border: 2px solid #ffcc88; color: #ffebc2; box-shadow: 0 10px 30px black;
+        }
+        .modal-buttons { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .modal-btn { background: #2c5a2a; border: none; padding: 8px 20px; border-radius: 40px; color: white; cursor: pointer; }
+        .temp-buff-badge { background: #2a3f3f; border-radius: 20px; padding: 4px 12px; margin-top: 8px; display: inline-block; font-size: 14px; }
+        .equip-detail { font-size: 12px; color: #ddd; margin-top: 4px; }
+        .sell-btn { background: #a52222; border: none; border-radius: 20px; padding: 4px 12px; margin-top: 8px; cursor: pointer; color: white; font-size: 12px; }
+    </style>
+</head>
+<body>
+<div id="gameRoot"></div>
+
+<script>
+    // ------------------- 游戏数据核心 -------------------
+    let saveData = {
+        gold: 600,
+        baseHp: 110,
+        baseAtk: 14,
+        baseAtkSpeed: 0.32,
+        baseSpeed: 320,
+        upgradeHpLv: 0,
+        upgradeAtkLv: 0,
+        upgradeSpdLv: 0,
+        upgradeMoveLv: 0,
+        equipment: { weapon: null, helmet: null, armor: null, boots: null },
+        clearedStageCount: 0,        // 通过的节点总数 (用于三层奖励 & 15关宝箱)
+        tempShield: 0,
+        lifesteal: 0,
+        extraProjectiles: 0,
+        killStackAtk: 0
+    };
+
+    // 临时效果 (死亡清除)
+    let tempEffects = {
+        nextBossBuff: null,
+        hasEgg: false,
+        follower: null,
+        reviveStone: false,
+        tempEquipments: []
+    };
+
+    let currentDifficultyDepth = 0;   // 影响怪物强度
+    let pendingNodeCallback = null;
+    
+    // 装备库
+    const ALL_EQUIPMENTS = [
+        { id: "w1", name: "铁剑", slot: "weapon", rarity: "white", atk: 5, hp: 0, spd: 0, move: 0, set: "基础", price: 80, slotName:"武器" },
+        { id: "w2", name: "银光刃", slot: "weapon", rarity: "blue", atk: 12, hp: 10, spd: 0.05, move: 5, set: "月光", price: 180, slotName:"武器" },
+        { id: "w3", name: "紫电", slot: "weapon", rarity: "purple", atk: 22, hp: 15, spd: 0.1, move: 8, set: "雷霆", price: 350, slotName:"武器" },
+        { id: "w4", name: "龙息金剑", slot: "weapon", rarity: "gold", atk: 38, hp: 30, spd: 0.15, move: 12, set: "巨龙", price: 1400, slotName:"武器" }, // 价格提升
+        { id: "w5", name: "血魔刃", slot: "weapon", rarity: "red", atk: 55, hp: 45, spd: 0.2, move: 18, set: "血煞", price: 2400, slotName:"武器" },
+        { id: "h1", name: "皮盔", slot: "helmet", rarity: "white", atk: 1, hp: 8, spd: 0, move: 2, set: "基础", price: 50, slotName:"头盔" },
+        { id: "h2", name: "蓝宝石冠", slot: "helmet", rarity: "blue", atk: 3, hp: 20, spd: 0.02, move: 4, set: "月光", price: 130, slotName:"头盔" },
+        { id: "h3", name: "紫晶盔", slot: "helmet", rarity: "purple", atk: 6, hp: 35, spd: 0.05, move: 7, set: "雷霆", price: 280, slotName:"头盔" },
+        { id: "h4", name: "黄金王冠", slot: "helmet", rarity: "gold", atk: 10, hp: 55, spd: 0.08, move: 10, set: "巨龙", price: 1100, slotName:"头盔" },
+        { id: "h5", name: "赤红魔盔", slot: "helmet", rarity: "red", atk: 15, hp: 85, spd: 0.12, move: 14, set: "血煞", price: 2000, slotName:"头盔" },
+        { id: "a1", name: "布甲", slot: "armor", rarity: "white", atk: 0, hp: 15, spd: 0, move: 3, set: "基础", price: 70, slotName:"胸甲" },
+        { id: "a2", name: "蓝鳞甲", slot: "armor", rarity: "blue", atk: 2, hp: 32, spd: 0.03, move: 5, set: "月光", price: 160, slotName:"胸甲" },
+        { id: "a3", name: "紫晶胸甲", slot: "armor", rarity: "purple", atk: 5, hp: 55, spd: 0.07, move: 8, set: "雷霆", price: 320, slotName:"胸甲" },
+        { id: "a4", name: "金辉战甲", slot: "armor", rarity: "gold", atk: 10, hp: 85, spd: 0.12, move: 12, set: "巨龙", price: 1200, slotName:"胸甲" },
+        { id: "a5", name: "猩红魔铠", slot: "armor", rarity: "red", atk: 18, hp: 130, spd: 0.18, move: 18, set: "血煞", price: 2200, slotName:"胸甲" },
+        { id: "b1", name: "草鞋", slot: "boots", rarity: "white", atk: 0, hp: 5, spd: 0, move: 8, set: "基础", price: 40, slotName:"靴子" },
+        { id: "b2", name: "蓝羽靴", slot: "boots", rarity: "blue", atk: 1, hp: 12, spd: 0.02, move: 18, set: "月光", price: 120, slotName:"靴子" },
+        { id: "b3", name: "紫风靴", slot: "boots", rarity: "purple", atk: 3, hp: 22, spd: 0.05, move: 30, set: "雷霆", price: 260, slotName:"靴子" },
+        { id: "b4", name: "黄金战靴", slot: "boots", rarity: "gold", atk: 7, hp: 40, spd: 0.1, move: 48, set: "巨龙", price: 1050, slotName:"靴子" },
+        { id: "b5", name: "赤血踏", slot: "boots", rarity: "red", atk: 12, hp: 70, spd: 0.15, move: 70, set: "血煞", price: 1900, slotName:"靴子" },
+    ];
+
+    // 辅助函数
+    function saveToLocal() { localStorage.setItem("bulletGameSave", JSON.stringify(saveData)); }
+    function loadFromLocal() {
+        const raw = localStorage.getItem("bulletGameSave");
+        if(raw) { try { Object.assign(saveData, JSON.parse(raw)); } catch(e){} }
+        if(!saveData.equipment) saveData.equipment = { weapon:null, helmet:null, armor:null, boots:null };
+        updateAllUI();
+    }
+    function clearAllData() {
+        showModal("⚠️ 清除所有进度？", () => {
+            localStorage.removeItem("bulletGameSave");
+            resetDefaultData();
+            saveToLocal();
+            updateAllUI();
+            refreshShop();
+        }, null, "确认清除", "取消");
+    }
+    function resetDefaultData() {
+        saveData = { gold: 600, baseHp: 110, baseAtk: 14, baseAtkSpeed: 0.32, baseSpeed: 320, upgradeHpLv:0, upgradeAtkLv:0, upgradeSpdLv:0, upgradeMoveLv:0, equipment:{ weapon:null, helmet:null, armor:null, boots:null }, clearedStageCount:0, tempShield:0, lifesteal:0, extraProjectiles:0, killStackAtk:0 };
+        tempEffects = { nextBossBuff: null, hasEgg: false, follower: null, reviveStone: false, tempEquipments: [] };
+        currentDifficultyDepth = 0;
+    }
+
+    // 计算最终属性 (永久+临时)
+    function calcFinalStats() {
+        let bonusHp = saveData.upgradeHpLv * 15;
+        let bonusAtk = saveData.upgradeAtkLv * 4;
+        let bonusSpd = saveData.upgradeSpdLv * 0.025;
+        let bonusMove = saveData.upgradeMoveLv * 18;
+        let setCount = {};
+        for(let eq of Object.values(saveData.equipment)) if(eq) {
+            bonusHp += eq.hp; bonusAtk += eq.atk; bonusSpd += eq.spd; bonusMove += eq.move;
+            setCount[eq.set] = (setCount[eq.set] || 0) + 1;
+        }
+        for(let te of tempEffects.tempEquipments) {
+            bonusAtk += te.atk; bonusHp += te.hp; bonusSpd += te.spd; bonusMove += te.move;
+        }
+        let maxHp = saveData.baseHp + bonusHp;
+        let attack = saveData.baseAtk + bonusAtk + (saveData.killStackAtk || 0);
+        let attackInterval = Math.max(0.12, saveData.baseAtkSpeed - bonusSpd);
+        let moveSpeed = saveData.baseSpeed + bonusMove;
+        let extraProj = 0, lifesteal = 0, shieldBuff = 0;
+        for(let [setName, count] of Object.entries(setCount)) {
+            if(count >= 3) {
+                if(setName === "巨龙") { extraProj = 1; lifesteal = 8; }
+                if(setName === "血煞") { extraProj = 2; lifesteal = 12; }
+                if(setName === "雷霆") { lifesteal = 5; shieldBuff = 20; }
+                if(setName === "月光") { lifesteal = 3; }
+            }
+            if(count >= 4 && setName === "血煞") { extraProj = 2; lifesteal = 18; }
+            if(count >= 4 && setName === "巨龙") { extraProj = 2; lifesteal = 12; }
+        }
+        return { maxHp, attack, attackInterval, moveSpeed, extraProj, lifesteal, shieldBuff };
+    }
+
+    function updateAllUI() {
+        document.getElementById("goldAmount").innerText = Math.floor(saveData.gold);
+        const stats = calcFinalStats();
+        document.getElementById("statHp").innerText = `${stats.maxHp}`;
+        document.getElementById("statAtk").innerText = `${Math.floor(stats.attack)}`;
+        document.getElementById("statSpd").innerText = `${(1/stats.attackInterval).toFixed(1)}/s`;
+        document.getElementById("statMove").innerText = `${Math.floor(stats.moveSpeed)}`;
+        for(let s of ["weapon","helmet","armor","boots"]) {
+            let eq = saveData.equipment[s];
+            let div = document.getElementById(`slot-${s}`);
+            if(eq) { div.innerHTML = `${eq.name} [${eq.rarity}]<div class="equip-detail">⚔+${eq.atk} ❤+${eq.hp} 🏹+${(eq.spd*100).toFixed(0)}%</div>`; div.className = `item-slot rarity-${eq.rarity}-slot`; }
+            else { div.innerHTML = `无 | 点击购买`; div.className = `item-slot`; }
+        }
+        let setDesc = []; let st = calcFinalStats();
+        if(st.extraProj>0) setDesc.push(`+${st.extraProj}弹道`);
+        if(st.lifesteal>0) setDesc.push(`吸血${st.lifesteal}%`);
+        document.getElementById("setEffect").innerHTML = setDesc.length? setDesc.join(" · ") : "无激活套装(≥3同套)";
+        let tempDiv = document.getElementById("tempEffectArea");
+        if(tempDiv) tempDiv.innerHTML = `<div>✨临时: ${tempEffects.nextBossBuff ? "石中剑(下次BOSS后+攻) " : ""} ${tempEffects.hasEgg ? "🥚孵蛋中 " : ""} ${tempEffects.reviveStone ? "🪦复活石板 " : ""} 临时装备:${tempEffects.tempEquipments.length}</div>`;
+    }
+
+    function upgrade(stat) {
+        let cost = 0;
+        if(stat === 'hp') { cost = 80 + saveData.upgradeHpLv * 25; if(saveData.gold>=cost){ saveData.gold-=cost; saveData.upgradeHpLv++; } else { showModal("金币不足！"); return; } }
+        else if(stat === 'atk') { cost = 70 + saveData.upgradeAtkLv * 22; if(saveData.gold>=cost){ saveData.gold-=cost; saveData.upgradeAtkLv++; } else { showModal("金币不足！"); return; } }
+        else if(stat === 'spd') { cost = 90 + saveData.upgradeSpdLv * 30; if(saveData.gold>=cost){ saveData.gold-=cost; saveData.upgradeSpdLv++; } else { showModal("金币不足！"); return; } }
+        else if(stat === 'move'){ cost = 60 + saveData.upgradeMoveLv * 20; if(saveData.gold>=cost){ saveData.gold-=cost; saveData.upgradeMoveLv++; } else { showModal("金币不足！"); return; } }
+        saveToLocal(); updateAllUI();
+    }
+
+    // 商店刷新机制（稀有度权重）
+    let refreshCount = 0;
+    function getRarityWeighted() {
+        let r = Math.random();
+        // 红色概率基础2%，每刷新10次强制提升但这里用权重: 红色权重2，金色权重8，紫色20，蓝色30，白色40
+        let redChance = 0.02 + (Math.floor(refreshCount/10)*0.01);
+        let goldChance = 0.08 + (Math.floor(refreshCount/5)*0.02);
+        if(Math.random() < redChance) return "red";
+        if(Math.random() < goldChance) return "gold";
+        let r2 = Math.random();
+        if(r2<0.2) return "purple";
+        if(r2<0.5) return "blue";
+        return "white";
+    }
+    function getRandomEquipmentByRarity(rarity) {
+        let filtered = ALL_EQUIPMENTS.filter(e => e.rarity === rarity);
+        if(filtered.length===0) filtered = ALL_EQUIPMENTS.filter(e=>e.rarity==="white");
+        return JSON.parse(JSON.stringify(filtered[Math.floor(Math.random()*filtered.length)]));
+    }
+    let currentShopList = [];
+    function refreshShop(manualCost=false) {
+        if(manualCost) {
+            let cost = 50;
+            if(saveData.gold >= cost) { saveData.gold -= cost; saveToLocal(); updateAllUI(); }
+            else { showModal("金币不足，无法刷新商店"); return; }
+        }
+        refreshCount++;
+        currentShopList = [];
+        for(let i=0;i<6;i++) {
+            let rarity = getRarityWeighted();
+            let eq = getRandomEquipmentByRarity(rarity);
+            // 红色价格提升1.5倍
+            if(eq.rarity === "red") eq.price = Math.floor(eq.price * 1.6);
+            if(eq.rarity === "gold") eq.price = Math.floor(eq.price * 1.3);
+            currentShopList.push(eq);
+        }
+        renderShopUI();
+    }
+    function renderShopUI() {
+        const container = document.getElementById("shopItems");
+        container.innerHTML = "";
+        for(let eq of currentShopList){
+            let div = document.createElement("div");
+            div.className = `shop-item rarity-${eq.rarity}`;
+            div.innerHTML = `<b>${eq.name}</b> (${eq.rarity})<br>[${eq.slotName}]<br>⚔+${eq.atk} ❤+${eq.hp}<br>💨+${eq.move} 🏹+${(eq.spd*100).toFixed(0)}%<br><span style="color:#ffaa55">💰${eq.price}</span>`;
+            div.onclick = () => buyEquipment(eq);
+            container.appendChild(div);
+        }
+    }
+
+    function buyEquipment(eq) {
+        if(saveData.gold >= eq.price) {
+            let slot = eq.slot;
+            if(saveData.equipment[slot] !== null && !confirm(`替换当前${saveData.equipment[slot].name}，会失去原装备，确定吗？`)) return;
+            saveData.gold -= eq.price;
+            saveData.equipment[slot] = { ...eq };
+            saveToLocal();
+            updateAllUI();
+            refreshShop(false);
+        } else showModal("金币不足！");
+    }
+
+    // 自身装备卖出
+    function sellEquipment(slot) {
+        let eq = saveData.equipment[slot];
+        if(!eq) { showModal("该部位无装备可出售"); return; }
+        let sellPrice = Math.floor(eq.price * 0.5);
+        showModal(`出售 ${eq.name} 获得 ${sellPrice} 金币？`, () => {
+            saveData.gold += sellPrice;
+            saveData.equipment[slot] = null;
+            saveToLocal();
+            updateAllUI();
+            refreshShop(false);
+        }, null, "出售", "取消");
+    }
+
+    // 自定义弹窗
+    function showModal(msg, onOk=null, onCancel=null, okTxt="确定", cancelTxt=null) {
+        let modal = document.createElement("div"); modal.className = "custom-modal";
+        modal.innerHTML = `<div class="modal-content"><p>${msg}</p><div class="modal-buttons"></div></div>`;
+        let btnDiv = modal.querySelector(".modal-buttons");
+        let okBtn = document.createElement("button"); okBtn.innerText = okTxt; okBtn.className = "modal-btn";
+        okBtn.onclick = () => { modal.remove(); if(onOk) onOk(); };
+        btnDiv.appendChild(okBtn);
+        if(cancelTxt) {
+            let cancelBtn = document.createElement("button"); cancelBtn.innerText = cancelTxt; cancelBtn.className = "modal-btn";
+            cancelBtn.onclick = () => { modal.remove(); if(onCancel) onCancel(); };
+            btnDiv.appendChild(cancelBtn);
+        }
+        document.body.appendChild(modal);
+    }
+
+    // 生成怪物，深度影响属性
+    function createMonster(type, depth) {
+        let baseHp = 60, baseDmg = 12;
+        let scaling = 1 + depth * 0.12;
+        if(type === "melee") { baseHp = 70 + depth*8; baseDmg = 14 + depth*2; }
+        if(type === "ranged") { baseHp = 55 + depth*7; baseDmg = 12 + depth*2; }
+        if(type === "elite") { baseHp = 190 + depth*22; baseDmg = 24 + depth*3.5; }
+        if(type === "boss") { baseHp = 380 + depth*40; baseDmg = 35 + depth*5; }
+        let name = { melee:"狂战士", ranged:"游荡者", elite:"精英卫士", boss:"深渊君主" }[type];
+        return { type, name, hp: baseHp, maxHp: baseHp, damage: baseDmg, x: 400+Math.random()*200, y: 300+Math.random()*200, rangedCd:0, meleeCd:0, attackSpeed: type==="boss"?1.0:1.3, facingAngle:0 };
+    }
+
+    function generateWaveByDepth(depth) {
+        let enemies = [];
+        let count = 1 + Math.min(3, Math.floor(depth/2));
+        let hasElite = (depth >= 2 && Math.random() < 0.4) || (depth>=4);
+        let hasBoss = (depth >= 4 && Math.random() < 0.3) || (depth>=7);
+        if(hasBoss) { enemies.push(createMonster("boss", depth)); count--; }
+        if(hasElite && enemies.length<2) enemies.push(createMonster("elite", depth));
+        for(let i=0;i<count;i++) {
+            let type = Math.random()<0.6 ? "melee" : "ranged";
+            enemies.push(createMonster(type, depth));
+        }
+        if(enemies.length===0) enemies.push(createMonster("melee", depth));
+        return enemies;
+    }
+
+    // 随机事件
+    function triggerEvent(callbackAfter) {
+        let events = ["sword", "egg", "stone", "relic"];
+        let chosen = events[Math.floor(Math.random()*events.length)];
+        if(chosen === "sword") {
+            tempEffects.nextBossBuff = true;
+            showModal("⚔️ 石中剑: 下次击败BOSS后获得攻击力+10 (死亡消失)", ()=>callbackAfter(true));
+        } else if(chosen === "egg") {
+            tempEffects.hasEgg = true;
+            showModal("🥚 神秘之蛋: 下次休息后孵出随从协助战斗", ()=>callbackAfter(true));
+        } else if(chosen === "stone") {
+            tempEffects.reviveStone = true;
+            showModal("🪦 神秘石板: 死亡时可以选择50%血量复活一次", ()=>callbackAfter(true));
+        } else if(chosen === "relic") {
+            let rareEquips = ALL_EQUIPMENTS.filter(e => ["purple","gold","red"].includes(e.rarity));
+            let relic = rareEquips[Math.floor(Math.random()*rareEquips.length)];
+            let copy = { ...relic, atk: relic.atk, hp: relic.hp, spd: relic.spd, move: relic.move, name: relic.name+"(临时)" };
+            tempEffects.tempEquipments.push(copy);
+            showModal(`✨ 先古遗物: 获得临时装备 ${copy.name} 属性增加! (死亡消失)`, ()=>callbackAfter(true));
+        }
+        updateAllUI();
+    }
+
+    // 战斗模块变量
+    let inCombat = false, combatCtx, canvas, animFrame, playerObj, bullets=[], enemies=[], enemyProjectiles=[], keys={ w:false,s:false,a:false,d:false }, mouseAngle=0, lastTime=0, pendingSectorAttacks=[], followerUnit=null;
+    let combatGoldReward=0, currentCombatNodeCallback=null;
+    let mouseX=500, mouseY=350; // 用于瞄准器
+
+    function startCombat(enemyList, onFinish) {
+        if(inCombat) return;
+        const stats = calcFinalStats();
+        playerObj = { x:500, y:350, hp: stats.maxHp + saveData.tempShield, maxHp: stats.maxHp + saveData.tempShield, damage: stats.attack, attackCd:0, moveSpeed: stats.moveSpeed, extraProj: stats.extraProj, lifesteal: stats.lifesteal, invincible:0 };
+        saveData.tempShield = 0;
+        saveData.killStackAtk = 0;
+        // 确保玩家和怪物有一定距离
+        enemies = enemyList.map(e=>{
+            let newE = JSON.parse(JSON.stringify(e));
+            newE.x = 300 + Math.random() * 400;
+            newE.y = 100 + Math.random() * 500;
+            while(Math.hypot(newE.x - playerObj.x, newE.y - playerObj.y) < 150) {
+                newE.x = 300 + Math.random() * 400;
+                newE.y = 100 + Math.random() * 500;
+            }
+            return newE;
+        });
+        bullets = []; enemyProjectiles = []; pendingSectorAttacks = [];
+        followerUnit = tempEffects.follower ? { ...tempEffects.follower, x:playerObj.x+40, y:playerObj.y, hp:tempEffects.follower.maxHp } : null;
+        inCombat = true;
+        currentCombatNodeCallback = onFinish;
+        document.getElementById("combatPanel").style.display = "block";
+        document.getElementById("mainMenuPanel").style.display = "none";
+        canvas = document.getElementById("gameCanvas"); combatCtx = canvas.getContext("2d");
+        lastTime = performance.now();
+        function gameLoop(now) { if(!inCombat) return; let dt = Math.min(0.033, (now-lastTime)/1000); if(dt>0) { updateCombat(dt); drawCombat(); } lastTime=now; requestAnimationFrame(gameLoop); }
+        requestAnimationFrame(gameLoop);
+    }
+
+    function updateCombat(dt) {
+        if(playerObj.hp <= 0) { defeatHandler(); return; }
+        let move={x:0,y:0}; if(keys.w) move.y-=1; if(keys.s) move.y+=1; if(keys.a) move.x-=1; if(keys.d) move.x+=1;
+        if(move.x||move.y) { let len=Math.hypot(move.x,move.y); move.x/=len; move.y/=len; playerObj.x+=move.x*playerObj.moveSpeed*dt; playerObj.y+=move.y*playerObj.moveSpeed*dt; }
+        playerObj.x=Math.min(960,Math.max(40,playerObj.x)); playerObj.y=Math.min(660,Math.max(40,playerObj.y));
+        if(playerObj.invincible>0) playerObj.invincible-=dt;
+        if(playerObj.attackCd<=0) {
+            let ang=mouseAngle; let angles=[ang];
+            if(playerObj.extraProj>=1) angles=[ang-0.2,ang,ang+0.2];
+            for(let a of angles) bullets.push({x:playerObj.x,y:playerObj.y, vx:Math.cos(a)*550, vy:Math.sin(a)*550, damage:playerObj.damage});
+            playerObj.attackCd = 1/(1/(calcFinalStats().attackInterval));
+        } else playerObj.attackCd-=dt;
+        if(followerUnit && followerUnit.hp>0) {
+            let nearest = enemies[0]; if(nearest) { let angle=Math.atan2(nearest.y-followerUnit.y, nearest.x-followerUnit.x); bullets.push({x:followerUnit.x,y:followerUnit.y, vx:Math.cos(angle)*480, vy:Math.sin(angle)*480, damage:18}); }
+            followerUnit.x = playerObj.x+35; followerUnit.y = playerObj.y+15;
+        }
+        for(let i=0;i<bullets.length;i++) { bullets[i].x+=bullets[i].vx*dt; bullets[i].y+=bullets[i].vy*dt; if(bullets[i].x<0||bullets[i].x>1000||bullets[i].y<0||bullets[i].y>700) bullets.splice(i--,1); }
+        for(let i=0;i<enemies.length;i++) {
+            let e=enemies[i]; let dx=playerObj.x-e.x, dy=playerObj.y-e.y, dist=Math.hypot(dx,dy);
+            if(dist>0.01) { let speed=(e.type==="melee"?170:e.type==="ranged"?100:130)*dt; if(dist>35){ e.x+=(dx/dist)*speed; e.y+=(dy/dist)*speed; } }
+            if((e.type==="ranged"||e.type==="elite"||e.type==="boss") && e.rangedCd<=0) {
+                let angle=Math.atan2(playerObj.y-e.y, playerObj.x-e.x); let icon=(e.type==="elite"||e.type==="boss")?"sword":"normal";
+                enemyProjectiles.push({x:e.x,y:e.y, vx:Math.cos(angle)*300, vy:Math.sin(angle)*300, damage:e.damage, icon:icon});
+                e.rangedCd=e.attackSpeed;
+            } else if(e.rangedCd) e.rangedCd-=dt;
+            if(e.meleeCd<=0 && (e.type==="melee"||e.type==="elite"||e.type==="boss")) {
+                let angleTo=Math.atan2(playerObj.y-e.y, playerObj.x-e.x); let diff=Math.abs(angleTo-e.facingAngle); if(diff>Math.PI) diff=2*Math.PI-diff;
+                if(diff<1.0 && Math.hypot(playerObj.x-e.x, playerObj.y-e.y)<75) { if(playerObj.invincible<=0){ playerObj.hp-=e.damage; playerObj.invincible=0.5; } }
+                pendingSectorAttacks.push({x:e.x,y:e.y, angle:e.facingAngle, range:75, duration:0.2, current:0});
+                e.meleeCd=1.2; e.facingAngle=angleTo+(Math.random()-0.5)*0.6;
+            } else if(e.meleeCd) e.meleeCd-=dt;
+        }
+        for(let i=0;i<enemyProjectiles.length;i++) { let p=enemyProjectiles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; if(Math.hypot(p.x-playerObj.x, p.y-playerObj.y)<20 && playerObj.invincible<=0){ playerObj.hp-=p.damage; playerObj.invincible=0.5; enemyProjectiles.splice(i--,1); } else if(p.x<0||p.x>1000||p.y<0||p.y>700) enemyProjectiles.splice(i--,1); }
+        for(let i=0;i<bullets.length;i++) for(let j=0;j<enemies.length;j++) { if(Math.hypot(bullets[i].x-enemies[j].x, bullets[i].y-enemies[j].y)<22) { enemies[j].hp-=bullets[i].damage; if(enemies[j].hp<=0){ let goldGain=enemies[j].type==="melee"?35:enemies[j].type==="ranged"?30:enemies[j].type==="elite"?150:500; saveData.gold+=goldGain; combatGoldReward+=goldGain; if(playerObj.lifesteal>0) playerObj.hp=Math.min(playerObj.maxHp, playerObj.hp+Math.floor(bullets[i].damage*playerObj.lifesteal/100)); if(tempEffects.nextBossBuff && enemies[j].type==="boss") { saveData.baseAtk+=10; tempEffects.nextBossBuff=false; showModal("石中剑之力: 攻击力永久+10!"); updateAllUI(); } enemies.splice(j,1); } bullets.splice(i--,1); break; } }
+        if(followerUnit && followerUnit.hp<=0) followerUnit=null;
+        if(enemies.length===0) { winCombat(); }
+        for(let s of pendingSectorAttacks) { s.current+=dt; if(s.current>=s.duration) pendingSectorAttacks.splice(pendingSectorAttacks.indexOf(s),1); }
+    }
+
+    function winCombat() {
+        inCombat=false;
+        saveData.gold+=combatGoldReward;
+        currentDifficultyDepth++;  // 每过一关深度增加
+        saveData.clearedStageCount++;
+        // 15关宝箱奖励
+        if(saveData.clearedStageCount % 15 === 0) {
+            giveTreasureChest();
+        }
+        saveToLocal();
+        updateAllUI();
+        document.getElementById("combatPanel").style.display="none";
+        document.getElementById("mainMenuPanel").style.display="block";
+        if(currentCombatNodeCallback) currentCombatNodeCallback(true);
+    }
+    
+    function giveTreasureChest() {
+        // 随机蓝紫金红
+        let r = Math.random();
+        let quality = "blue";
+        if(r<0.05) quality="red";
+        else if(r<0.15) quality="gold";
+        else if(r<0.4) quality="purple";
+        let candidates = ALL_EQUIPMENTS.filter(e=>e.rarity===quality);
+        let chestItem = JSON.parse(JSON.stringify(candidates[Math.floor(Math.random()*candidates.length)]));
+        showModal(`🎁 通关15层宝箱！获得 ${chestItem.name} (${chestItem.rarity})\n⚔+${chestItem.atk} ❤+${chestItem.hp} 🏹+${(chestItem.spd*100).toFixed(0)}%\n是否穿戴到${chestItem.slotName}部位？`, 
+            ()=>{
+                let slot = chestItem.slot;
+                if(saveData.equipment[slot] !== null && !confirm(`替换当前${saveData.equipment[slot].name}，会失去原装备，确定吗？`)) return;
+                saveData.equipment[slot] = chestItem;
+                saveToLocal(); updateAllUI();
+            }, 
+            ()=>{
+                let sellPrice = Math.floor(chestItem.price * 0.5);
+                saveData.gold += sellPrice;
+                saveToLocal(); updateAllUI();
+                showModal(`卖出获得 ${sellPrice} 金币`);
+            }, "穿戴", "卖出");
+    }
+
+    function defeatHandler() {
+        inCombat=false;
+        if(tempEffects.reviveStone) {
+            showModal("🪦 石板生效: 复活并恢复50%生命", ()=>{
+                playerObj.hp = playerObj.maxHp * 0.5; tempEffects.reviveStone=false; inCombat=true; 
+                updateAllUI();
+            }, null, "复活");
+            return;
+        }
+        showModal("你已死亡，返回主城...", ()=>{
+            tempEffects = { nextBossBuff:null, hasEgg:false, follower:null, reviveStone:false, tempEquipments:[] };
+            saveData.killStackAtk=0;
+            updateAllUI();
+            document.getElementById("combatPanel").style.display="none";
+            document.getElementById("mainMenuPanel").style.display="block";
+        });
+    }
+
+    function drawCombat() {
+        combatCtx.clearRect(0,0,1000,700); combatCtx.fillStyle="#141c24"; combatCtx.fillRect(0,0,1000,700);
+        combatCtx.fillStyle="#ffdd99"; combatCtx.beginPath(); combatCtx.arc(playerObj.x,playerObj.y,16,0,Math.PI*2); combatCtx.fill(); combatCtx.fillStyle="white"; combatCtx.font="bold 20px monospace"; combatCtx.fillText("🧙", playerObj.x-12, playerObj.y+8);
+        for(let e of enemies) { combatCtx.fillStyle=e.type==="melee"?"#aa6644":e.type==="ranged"?"#88aa44":e.type==="elite"?"#c97eff":"#dd3333"; combatCtx.beginPath(); combatCtx.arc(e.x,e.y,20,0,Math.PI*2); combatCtx.fill(); combatCtx.fillStyle="white"; combatCtx.fillText(e.name, e.x-15, e.y-12); combatCtx.fillStyle="red"; combatCtx.fillRect(e.x-25, e.y-28, 50*(e.hp/e.maxHp), 6); }
+        for(let s of pendingSectorAttacks) { combatCtx.fillStyle=`rgba(255,80,40,${0.6-s.current*2})`; combatCtx.beginPath(); combatCtx.moveTo(s.x,s.y); let sa=s.angle-0.9, ea=s.angle+0.9; for(let a=sa;a<=ea;a+=0.1){ let x1=s.x+Math.cos(a)*s.range, y1=s.y+Math.sin(a)*s.range; if(a===sa) combatCtx.moveTo(x1,y1); else combatCtx.lineTo(x1,y1); } combatCtx.fill(); }
+        for(let b of bullets) { combatCtx.fillStyle="cyan"; combatCtx.beginPath(); combatCtx.arc(b.x,b.y,5,0,Math.PI*2); combatCtx.fill(); }
+        for(let p of enemyProjectiles) { if(p.icon==="sword"){ combatCtx.fillStyle="#ff6666"; combatCtx.fillRect(p.x-6,p.y-3,12,6); combatCtx.fillStyle="#aa2222"; combatCtx.fillRect(p.x-2,p.y-8,4,16); } else { combatCtx.fillStyle="#ff8844"; combatCtx.beginPath(); combatCtx.arc(p.x,p.y,7,0,Math.PI*2); combatCtx.fill(); } }
+        if(followerUnit) { combatCtx.fillStyle="#88ffaa"; combatCtx.beginPath(); combatCtx.arc(followerUnit.x,followerUnit.y,12,0,Math.PI*2); combatCtx.fill(); combatCtx.fillText("🐉", followerUnit.x-8, followerUnit.y+5); }
+        // 鼠标瞄准器
+        combatCtx.beginPath(); combatCtx.arc(mouseX, mouseY, 10, 0, Math.PI*2); combatCtx.strokeStyle = "#ffaa66"; combatCtx.lineWidth = 2; combatCtx.stroke();
+        combatCtx.moveTo(mouseX-18, mouseY); combatCtx.lineTo(mouseX-8, mouseY); combatCtx.moveTo(mouseX+18, mouseY); combatCtx.lineTo(mouseX+8, mouseY); combatCtx.moveTo(mouseX, mouseY-18); combatCtx.lineTo(mouseX, mouseY-8); combatCtx.moveTo(mouseX, mouseY+18); combatCtx.lineTo(mouseX, mouseY+8); combatCtx.stroke();
+        combatCtx.fillStyle="white"; combatCtx.fillText(`❤️ ${Math.floor(playerObj.hp)}/${playerObj.maxHp}`,20,40);
+    }
+
+    // 闯关流程
+    let currentNodeIndex = 0;
+    function startAdventure() {
+        currentNodeIndex = 0;
+        function nextNode() {
+            let node = { type: "combat", wave: generateWaveByDepth(currentDifficultyDepth) }; // 强制战斗简化流程，保留事件概率
+            if(Math.random()<0.2 && currentDifficultyDepth>1) node = { type: "event" };
+            if(node.type === "event") {
+                triggerEvent((success)=>{
+                    currentNodeIndex++;
+                    if(currentNodeIndex % 3 === 0) { triggerRestOrTrade(()=>{ nextNode(); }); }
+                    else nextNode();
+                });
+            } else {
+                startCombat(node.wave, (win)=>{
+                    if(win) {
+                        currentNodeIndex++;
+                        if(currentNodeIndex % 3 === 0) triggerRestOrTrade(()=>{ nextNode(); });
+                        else {
+                            showModal("胜利！继续冒险？", ()=>{ nextNode(); }, ()=>{ backToTown(); }, "继续前进", "返回主城");
+                        }
+                    } else backToTown();
+                });
+            }
+        }
+        nextNode();
+    }
+    function triggerRestOrTrade(cb) {
+        showModal("🏆 通过三层！ 休息(回满体力) 或 经商(+300金币)", ()=>{
+            saveData.gold+=300; if(tempEffects.hasEgg) { tempEffects.hasEgg=false; tempEffects.follower={ hp:120, maxHp:120, attack:20, x:0,y:0 }; showModal("蛋孵化了！获得龙侍从!"); }
+            updateAllUI(); cb();
+        }, ()=>{
+            saveData.gold+=300; updateAllUI(); cb();
+        }, "休息", "经商");
+    }
+    function backToTown() { document.getElementById("mainMenuPanel").style.display="block"; document.getElementById("combatPanel").style.display="none"; updateAllUI(); }
+
+    window.onload = () => {
+        const root = document.getElementById("gameRoot");
+        root.innerHTML = `<div class="game-container"><div id="mainMenuPanel" class="main-menu"><div class="top-bar"><span>💰 金币: <span id="goldAmount">0</span></span><span>⚔️ 弹幕传说·史诗</span><button class="btn clear-btn" id="clearDataBtn">清除数据</button></div><div class="action-buttons"><button class="btn btn-primary" id="btnFight">⚔️ 闯关</button><button class="btn" id="btnShop">🏪 商人</button><button class="btn" id="btnUpgrade">💪 强化</button></div><div id="panelUpgrade" class="panel" style="display:none"><h3>强化</h3><div class="stats-grid"><div class="stat-card">❤️血量+15 <button id="upHp" class="upgrade-btn">强化</button></div><div class="stat-card">⚔️攻击+4 <button id="upAtk" class="upgrade-btn">强化</button></div><div class="stat-card">🏹攻速+0.025<button id="upSpd" class="upgrade-btn">强化</button></div><div class="stat-card">👟移速+18<button id="upMove" class="upgrade-btn">强化</button></div></div></div><div id="panelShop" class="panel" style="display:none"><h3>🛒 装备商店 <button id="refreshShopBtn" class="btn refresh-btn">刷新(50金)</button></h3><div id="shopItems"></div><div>套装: <span id="setEffect">无</span></div></div><div class="panel"><h3>装备栏 (点击卖出)</h3><div class="equip-grid"><div class="item-slot" id="slot-weapon">无</div><div class="item-slot" id="slot-helmet">无</div><div class="item-slot" id="slot-armor">无</div><div class="item-slot" id="slot-boots">无</div></div><div>属性: ❤️<span id="statHp">0</span> ⚔️<span id="statAtk">0</span> 🏹<span id="statSpd">0</span>/s 👟<span id="statMove">0</span></div><div id="tempEffectArea"></div></div></div><div id="combatPanel" style="display:none"><canvas id="gameCanvas" width="1000" height="700"></canvas><div class="combat-overlay">鼠标瞄准 | WASD移动 | 自动射击</div></div></div>`;
+        canvas = document.getElementById("gameCanvas");
+        document.getElementById("btnFight").onclick = () => startAdventure();
+        document.getElementById("btnShop").onclick = () => { document.getElementById("panelShop").style.display="block"; document.getElementById("panelUpgrade").style.display="none"; refreshShop(false); };
+        document.getElementById("btnUpgrade").onclick = () => { document.getElementById("panelUpgrade").style.display="block"; document.getElementById("panelShop").style.display="none"; };
+        document.getElementById("refreshShopBtn").onclick = () => refreshShop(true);
+        document.getElementById("upHp").onclick = () => upgrade('hp'); document.getElementById("upAtk").onclick = () => upgrade('atk');
+        document.getElementById("upSpd").onclick = () => upgrade('spd'); document.getElementById("upMove").onclick = () => upgrade('move');
+        document.getElementById("clearDataBtn").onclick = () => clearAllData();
+        // 装备卖出绑定
+        document.getElementById("slot-weapon").onclick = () => sellEquipment("weapon");
+        document.getElementById("slot-helmet").onclick = () => sellEquipment("helmet");
+        document.getElementById("slot-armor").onclick = () => sellEquipment("armor");
+        document.getElementById("slot-boots").onclick = () => sellEquipment("boots");
+        window.addEventListener("keydown", (e) => { if(inCombat){ let k=e.key.toLowerCase(); if(k==='w') keys.w=true; if(k==='s') keys.s=true; if(k==='a') keys.a=true; if(k==='d') keys.d=true; } });
+        window.addEventListener("keyup", (e) => { let k=e.key.toLowerCase(); if(k==='w') keys.w=false; if(k==='s') keys.s=false; if(k==='a') keys.a=false; if(k==='d') keys.d=false; });
+        canvas.addEventListener("mousemove", (e) => { let rect=canvas.getBoundingClientRect(); let mx=e.clientX-rect.left, my=e.clientY-rect.top; mouseX=mx; mouseY=my; if(inCombat) mouseAngle=Math.atan2(my-playerObj.y, mx-playerObj.x); });
+        loadFromLocal(); refreshShop(false); updateAllUI();
+    };
+</script>
+</body>
+</html>
